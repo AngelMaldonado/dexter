@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.db
+*.db-journal
+.env
+.env.local
+.turbo/
+*.db-shm
+*.db-wal
+HOME/

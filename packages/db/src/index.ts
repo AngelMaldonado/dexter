@@ -1,0 +1,11 @@
+export { getDb } from './connection.js';
+export type { DexterDb } from './connection.js';
+export { initializeDatabase } from './migrate.js';
+export * from './schema.js';
+export { EntityRepository } from './repositories/entity-repository.js';
+export { TaskRepository } from './repositories/task-repository.js';
+export { DepartmentRepository } from './repositories/department-repository.js';
+export { ActivityRepository } from './repositories/activity-repository.js';
+export type { ActivityEntry } from './repositories/activity-repository.js';
+export { ExecutionRepository } from './repositories/execution-repository.js';
+export type { ExecutionRun } from './repositories/execution-repository.js';
