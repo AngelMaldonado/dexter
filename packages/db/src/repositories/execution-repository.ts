@@ -3,65 +3,41 @@ import { ulid } from 'ulid';
 import type { DexterDb } from '../connection.js';
 import { executionRuns } from '../schema.js';
 
-export interface ExecutionRun {
-  id: string;
-  taskId: string;
-  entityId: string;
-  status: 'running' | 'completed' | 'failed';
-  prompt: string;
-  result: string | null;
-  error: string | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  durationMs: number | null;
-  startedAt: string;
-  completedAt: string | null;
-}
+type ExecutionRow = typeof executionRuns.$inferSelect;
+type ExecutionInsert = typeof executionRuns.$inferInsert;
 
 export class ExecutionRepository {
   constructor(private db: DexterDb) {}
 
-  findById(id: string): ExecutionRun | undefined {
-    const row = this.db.select().from(executionRuns).where(eq(executionRuns.id, id)).get();
-    return row ? (row as ExecutionRun) : undefined;
+  findByTask(taskId: string): ExecutionRow[] {
+    return this.db.select().from(executionRuns).where(eq(executionRuns.taskId, taskId)).all();
   }
 
-  findByTask(taskId: string): ExecutionRun[] {
-    return this.db.select().from(executionRuns).where(eq(executionRuns.taskId, taskId)).all() as ExecutionRun[];
+  findByEntity(entityId: string): ExecutionRow[] {
+    return this.db.select().from(executionRuns).where(eq(executionRuns.entityId, entityId)).all();
   }
 
-  findByEntity(entityId: string): ExecutionRun[] {
-    return this.db.select().from(executionRuns).where(eq(executionRuns.entityId, entityId)).all() as ExecutionRun[];
-  }
-
-  create(input: { taskId: string; entityId: string; prompt: string }): ExecutionRun {
-    const row = {
+  create(input: Omit<ExecutionInsert, 'id' | 'startedAt'>): ExecutionRow {
+    const row: ExecutionInsert = {
       id: ulid(),
-      taskId: input.taskId,
-      entityId: input.entityId,
-      status: 'running',
-      prompt: input.prompt,
-      result: null,
-      error: null,
-      inputTokens: null,
-      outputTokens: null,
-      durationMs: null,
+      ...input,
       startedAt: new Date().toISOString(),
-      completedAt: null,
     };
     this.db.insert(executionRuns).values(row).run();
-    return row as ExecutionRun;
+    return this.findById(row.id!)!;
   }
 
-  complete(id: string, result: { result: string; inputTokens: number; outputTokens: number; durationMs: number }): void {
+  complete(id: string, result: string, tokens: { input: number; output: number; total: number }, cost: number, durationMs: number): void {
     this.db
       .update(executionRuns)
       .set({
         status: 'completed',
-        result: result.result,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        durationMs: result.durationMs,
+        result,
+        inputTokens: tokens.input,
+        outputTokens: tokens.output,
+        totalTokens: tokens.total,
+        cost,
+        durationMs,
         completedAt: new Date().toISOString(),
       })
       .where(eq(executionRuns.id, id))
@@ -78,5 +54,9 @@ export class ExecutionRepository {
       })
       .where(eq(executionRuns.id, id))
       .run();
+  }
+
+  private findById(id: string): ExecutionRow | undefined {
+    return this.db.select().from(executionRuns).where(eq(executionRuns.id, id)).get();
   }
 }

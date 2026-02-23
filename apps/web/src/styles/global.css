@@ -7,11 +7,12 @@
 }
 
 :root {
-  --bg-primary: #0f1117;
-  --bg-secondary: #1a1d27;
-  --bg-tertiary: #242833;
-  --text-primary: #e4e6ed;
-  --text-secondary: #9ca0af;
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-hover: #1e2a4a;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0b0;
   --text-muted: #6b7080;
   --accent: #6366f1;
   --accent-hover: #818cf8;
@@ -19,17 +20,24 @@
   --warning: #f59e0b;
   --error: #ef4444;
   --info: #3b82f6;
-  --border: #2d3140;
+  --purple: #8b5cf6;
+  --border: #2a2a4a;
+  --sidebar-width: 240px;
+  --header-height: 56px;
   --radius: 8px;
   --radius-lg: 12px;
 
   /* Entity state colors */
-  --state-idle: #6b7080;
+  --state-idle: #6b7280;
   --state-working: #22c55e;
   --state-thinking: #f59e0b;
   --state-blocked: #ef4444;
-  --state-collaborating: #3b82f6;
-  --state-break: #a78bfa;
+  --state-on-break: #3b82f6;
+  --state-collaborating: #8b5cf6;
+}
+
+html, body, #root {
+  height: 100%;
 }
 
 body {
@@ -37,7 +45,6 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.5;
-  min-height: 100vh;
 }
 
 a {
@@ -73,7 +80,7 @@ button:disabled {
 input,
 textarea,
 select {
-  background: var(--bg-tertiary);
+  background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text-primary);
   padding: 8px 12px;
@@ -87,4 +94,23 @@ textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }

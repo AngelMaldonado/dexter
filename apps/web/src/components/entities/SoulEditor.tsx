@@ -9,15 +9,18 @@ interface SoulEditorProps {
 const TEMPLATE = `---
 name:
 role:
+hierarchy: worker
 skills: []
 personality: []
-communication:
+communication: professional
 ---
 
 # Rules
--
+- Follow best practices
+- Ask for clarification when uncertain
 
 # Background
+A capable AI entity ready to contribute to the team.
 `;
 
 export function SoulEditor({ initialContent, onSave, onCancel }: SoulEditorProps) {
@@ -37,6 +40,7 @@ export function SoulEditor({ initialContent, onSave, onCancel }: SoulEditorProps
         onChange={(e) => setContent(e.target.value)}
         style={textareaStyle}
         spellCheck={false}
+        placeholder="Write SOUL.md content..."
       />
     </div>
   );
@@ -58,7 +62,7 @@ const headerStyle: React.CSSProperties = {
 };
 
 const cancelBtnStyle: React.CSSProperties = {
-  background: 'var(--bg-tertiary)',
+  background: 'var(--bg-card)',
   color: 'var(--text-secondary)',
 };
 
@@ -69,7 +73,7 @@ const textareaStyle: React.CSSProperties = {
   background: 'var(--bg-primary)',
   border: 'none',
   color: 'var(--text-primary)',
-  fontFamily: '"SF Mono", "Fira Code", monospace',
+  fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace',
   fontSize: 13,
   lineHeight: 1.6,
   resize: 'vertical',

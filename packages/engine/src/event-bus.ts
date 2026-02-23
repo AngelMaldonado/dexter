@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { EventBus as IEventBus, DexterEvent, DexterEventType } from '@dexter/core';
+import type { IEventBus, DexterEvent, DexterEventType } from '@dexter/core';
 
 export class EventBus implements IEventBus {
   private emitter = new EventEmitter();
@@ -10,26 +10,22 @@ export class EventBus implements IEventBus {
 
   emit(event: DexterEvent): void {
     this.emitter.emit(event.type, event);
-    this.emitter.emit('*', event); // wildcard for subscribers that want all events
+    this.emitter.emit('*', event);
   }
 
-  on<T extends DexterEventType>(
-    type: T,
-    handler: (event: Extract<DexterEvent, { type: T }>) => void,
-  ): () => void {
+  on(type: DexterEventType, handler: (event: DexterEvent) => void): void {
     this.emitter.on(type, handler);
-    return () => this.emitter.off(type, handler);
   }
 
-  off<T extends DexterEventType>(
-    type: T,
-    handler: (event: Extract<DexterEvent, { type: T }>) => void,
-  ): void {
+  off(type: DexterEventType, handler: (event: DexterEvent) => void): void {
     this.emitter.off(type, handler);
   }
 
-  onAny(handler: (event: DexterEvent) => void): () => void {
+  onAny(handler: (event: DexterEvent) => void): void {
     this.emitter.on('*', handler);
-    return () => this.emitter.off('*', handler);
+  }
+
+  offAny(handler: (event: DexterEvent) => void): void {
+    this.emitter.off('*', handler);
   }
 }

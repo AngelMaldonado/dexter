@@ -1,11 +1,9 @@
-import type { DexterEvent, DexterEventType } from '../types/events.js';
+import type { DexterEvent } from '../types/events.js';
 
-type EventHandler<T extends DexterEvent> = (event: T) => void;
-
-type ExtractEvent<T extends DexterEventType> = Extract<DexterEvent, { type: T }>;
-
-export interface EventBus {
+export interface IEventBus {
   emit(event: DexterEvent): void;
-  on<T extends DexterEventType>(type: T, handler: EventHandler<ExtractEvent<T>>): () => void;
-  off<T extends DexterEventType>(type: T, handler: EventHandler<ExtractEvent<T>>): void;
+  on(type: DexterEvent['type'], handler: (event: DexterEvent) => void): void;
+  off(type: DexterEvent['type'], handler: (event: DexterEvent) => void): void;
+  onAny(handler: (event: DexterEvent) => void): void;
+  offAny(handler: (event: DexterEvent) => void): void;
 }

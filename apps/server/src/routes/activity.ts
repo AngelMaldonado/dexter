@@ -1,19 +1,30 @@
 import { Hono } from 'hono';
-import type { Orchestrator } from '@dexter/engine';
+import type { ActivityRepository } from '@dexter/db';
 
-export function activityRoutes(orchestrator: Orchestrator) {
+export function activityRoutes(activityRepo: ActivityRepository) {
   const app = new Hono();
-  const activityRepo = orchestrator.getActivityRepo();
 
+  // Recent activity log
   app.get('/', (c) => {
-    const limit = parseInt(c.req.query('limit') ?? '50', 10);
-    const entries = activityRepo.findRecent(limit);
+    const limit = Math.min(200, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10) || 50));
+    const entityId = c.req.query('entityId');
+    const eventType = c.req.query('eventType');
+
+    let entries = entityId
+      ? activityRepo.findByEntity(entityId, limit)
+      : activityRepo.findRecent(limit);
+
+    if (eventType) {
+      entries = entries.filter((e: any) => e.eventType === eventType);
+    }
+
     return c.json(entries);
   });
 
-  app.get('/entity/:entityId', (c) => {
-    const limit = parseInt(c.req.query('limit') ?? '50', 10);
-    const entries = activityRepo.findByEntity(c.req.param('entityId'), limit);
+  // Activity for specific entity
+  app.get('/entity/:id', (c) => {
+    const limit = Math.min(200, Math.max(1, parseInt(c.req.query('limit') ?? '50', 10) || 50));
+    const entries = activityRepo.findByEntity(c.req.param('id'), limit);
     return c.json(entries);
   });
 

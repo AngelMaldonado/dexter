@@ -1,125 +1,158 @@
 import type { Entity, EntityState, Mood } from './entity.js';
 import type { Task, TaskStatus } from './task.js';
 
-export interface EntityStateChangedEvent {
-  type: 'entity:state-changed';
-  entityId: string;
-  previousState: EntityState;
-  newState: EntityState;
-  timestamp: string;
-}
-
-export interface EntityMoodChangedEvent {
-  type: 'entity:mood-changed';
-  entityId: string;
-  previousMood: Mood;
-  newMood: Mood;
-  timestamp: string;
-}
-
-export interface EntityEnergyChangedEvent {
-  type: 'entity:energy-changed';
-  entityId: string;
-  previousEnergy: number;
-  newEnergy: number;
-  timestamp: string;
-}
-
 export interface EntityCreatedEvent {
   type: 'entity:created';
-  entity: Entity;
   timestamp: string;
+  payload: { entity: Entity };
 }
 
-export interface EntityUpdatedEvent {
-  type: 'entity:updated';
-  entity: Entity;
+export interface EntityStateChangedEvent {
+  type: 'entity:state-changed';
   timestamp: string;
+  payload: {
+    entityId: string;
+    previousState: EntityState;
+    newState: EntityState;
+  };
 }
 
-export interface EntityDeletedEvent {
-  type: 'entity:deleted';
-  entityId: string;
+export interface EntityEnergyUpdatedEvent {
+  type: 'entity:energy-updated';
   timestamp: string;
+  payload: {
+    entityId: string;
+    previousEnergy: number;
+    newEnergy: number;
+    mood: Mood;
+  };
 }
 
 export interface TaskCreatedEvent {
   type: 'task:created';
-  task: Task;
   timestamp: string;
+  payload: { task: Task };
 }
 
 export interface TaskAssignedEvent {
   type: 'task:assigned';
-  taskId: string;
-  entityId: string;
   timestamp: string;
+  payload: {
+    taskId: string;
+    entityId: string;
+  };
 }
 
-export interface TaskStatusChangedEvent {
-  type: 'task:status-changed';
-  taskId: string;
-  previousStatus: TaskStatus;
-  newStatus: TaskStatus;
+export interface TaskStartedEvent {
+  type: 'task:started';
   timestamp: string;
+  payload: {
+    taskId: string;
+    entityId: string;
+  };
 }
 
 export interface TaskCompletedEvent {
   type: 'task:completed';
-  taskId: string;
-  entityId: string;
-  durationMinutes: number;
   timestamp: string;
+  payload: {
+    taskId: string;
+    entityId: string;
+    tokensUsed: number;
+    cost: number;
+  };
 }
 
 export interface TaskFailedEvent {
   type: 'task:failed';
-  taskId: string;
-  entityId: string;
-  error: string;
   timestamp: string;
+  payload: {
+    taskId: string;
+    entityId: string;
+    error: string;
+  };
+}
+
+export interface TaskDelegatedEvent {
+  type: 'task:delegated';
+  timestamp: string;
+  payload: {
+    taskId: string;
+    fromEntityId: string;
+    toEntityId: string;
+    subTaskIds: string[];
+  };
 }
 
 export interface AchievementUnlockedEvent {
   type: 'achievement:unlocked';
-  entityId: string;
-  achievementId: string;
-  achievementName: string;
-  points: number;
   timestamp: string;
+  payload: {
+    entityId: string;
+    achievementId: string;
+    achievementName: string;
+    xpReward: number;
+  };
 }
 
-export interface ExecutionStartedEvent {
-  type: 'execution:started';
-  runId: string;
-  taskId: string;
-  entityId: string;
+export interface XPAwardedEvent {
+  type: 'xp:awarded';
   timestamp: string;
+  payload: {
+    entityId: string;
+    amount: number;
+    source: string;
+    newTotal: number;
+    newLevel: number;
+  };
 }
 
-export interface ExecutionCompletedEvent {
-  type: 'execution:completed';
-  runId: string;
-  taskId: string;
-  entityId: string;
-  result: string;
+export interface MessageSentEvent {
+  type: 'message:sent';
   timestamp: string;
+  payload: {
+    fromEntityId: string;
+    toEntityId: string | null;
+    content: string;
+    channel: string;
+  };
+}
+
+export interface BoardSyncedEvent {
+  type: 'board:synced';
+  timestamp: string;
+  payload: {
+    boardProviderId: string;
+    cardsCreated: number;
+    cardsUpdated: number;
+  };
+}
+
+export interface MemoryStoredEvent {
+  type: 'memory:stored';
+  timestamp: string;
+  payload: {
+    entityId: string;
+    memoryType: 'episodic' | 'semantic' | 'skill';
+    taskId: string | null;
+    summary: string;
+  };
 }
 
 export type DexterEvent =
-  | EntityStateChangedEvent
-  | EntityMoodChangedEvent
-  | EntityEnergyChangedEvent
   | EntityCreatedEvent
-  | EntityUpdatedEvent
-  | EntityDeletedEvent
+  | EntityStateChangedEvent
+  | EntityEnergyUpdatedEvent
   | TaskCreatedEvent
   | TaskAssignedEvent
-  | TaskStatusChangedEvent
+  | TaskStartedEvent
   | TaskCompletedEvent
   | TaskFailedEvent
+  | TaskDelegatedEvent
   | AchievementUnlockedEvent
-  | ExecutionStartedEvent
-  | ExecutionCompletedEvent;
+  | XPAwardedEvent
+  | MessageSentEvent
+  | BoardSyncedEvent
+  | MemoryStoredEvent;
 
 export type DexterEventType = DexterEvent['type'];

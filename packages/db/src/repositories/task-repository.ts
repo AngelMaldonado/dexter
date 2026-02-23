@@ -1,89 +1,77 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { ulid } from 'ulid';
-import type { CreateTaskInput, Task, UpdateTaskInput } from '@dexter/core';
 import type { DexterDb } from '../connection.js';
 import { tasks } from '../schema.js';
+
+type TaskRow = typeof tasks.$inferSelect;
+type TaskInsert = typeof tasks.$inferInsert;
 
 export class TaskRepository {
   constructor(private db: DexterDb) {}
 
-  findAll(): Task[] {
-    const rows = this.db.select().from(tasks).all();
-    return rows.map(toTask);
+  findAll(filters?: { status?: string; assignedEntityId?: string; departmentId?: string }): TaskRow[] {
+    if (!filters) {
+      return this.db.select().from(tasks).all();
+    }
+    const conditions = [];
+    if (filters.status) conditions.push(eq(tasks.status, filters.status));
+    if (filters.assignedEntityId) conditions.push(eq(tasks.assignedEntityId, filters.assignedEntityId));
+    if (filters.departmentId) conditions.push(eq(tasks.departmentId, filters.departmentId));
+
+    if (conditions.length === 0) return this.db.select().from(tasks).all();
+    return this.db.select().from(tasks).where(and(...conditions)).all();
   }
 
-  findById(id: string): Task | undefined {
-    const row = this.db.select().from(tasks).where(eq(tasks.id, id)).get();
-    return row ? toTask(row) : undefined;
+  findById(id: string): TaskRow | undefined {
+    return this.db.select().from(tasks).where(eq(tasks.id, id)).get();
   }
 
-  findByAssignee(assigneeId: string): Task[] {
-    const rows = this.db.select().from(tasks).where(eq(tasks.assigneeId, assigneeId)).all();
-    return rows.map(toTask);
-  }
-
-  findByStatus(status: string): Task[] {
-    const rows = this.db.select().from(tasks).where(eq(tasks.status, status)).all();
-    return rows.map(toTask);
-  }
-
-  create(input: CreateTaskInput): Task {
+  create(input: Omit<TaskInsert, 'id' | 'createdAt' | 'updatedAt'>): TaskRow {
     const now = new Date().toISOString();
-    const id = ulid();
-    const row = {
-      id,
-      title: input.title,
-      description: input.description,
-      status: 'backlog' as const,
-      priority: input.priority ?? ('medium' as const),
-      skills: JSON.stringify(input.skills ?? []),
-      assigneeId: input.assigneeId ?? null,
-      departmentId: input.departmentId ?? null,
-      boardCardId: input.boardCardId ?? null,
-      boardConfigId: input.boardConfigId ?? null,
-      estimatedMinutes: input.estimatedMinutes ?? null,
-      actualMinutes: null,
+    const row: TaskInsert = {
+      id: ulid(),
+      ...input,
       createdAt: now,
       updatedAt: now,
-      completedAt: null,
     };
     this.db.insert(tasks).values(row).run();
-    return toTask(row);
+    return this.findById(row.id!)!;
   }
 
-  update(id: string, input: UpdateTaskInput): Task | undefined {
+  update(id: string, updates: Partial<Omit<TaskInsert, 'id' | 'createdAt'>>): TaskRow | undefined {
     const existing = this.findById(id);
     if (!existing) return undefined;
-
-    const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
-    if (input.title !== undefined) updates.title = input.title;
-    if (input.description !== undefined) updates.description = input.description;
-    if (input.status !== undefined) updates.status = input.status;
-    if (input.priority !== undefined) updates.priority = input.priority;
-    if (input.skills !== undefined) updates.skills = JSON.stringify(input.skills);
-    if (input.assigneeId !== undefined) updates.assigneeId = input.assigneeId;
-    if (input.departmentId !== undefined) updates.departmentId = input.departmentId;
-    if (input.estimatedMinutes !== undefined) updates.estimatedMinutes = input.estimatedMinutes;
-    if (input.actualMinutes !== undefined) updates.actualMinutes = input.actualMinutes;
-    if (input.completedAt !== undefined) updates.completedAt = input.completedAt;
-
-    this.db.update(tasks).set(updates).where(eq(tasks.id, id)).run();
+    this.db.update(tasks).set({ ...updates, updatedAt: new Date().toISOString() }).where(eq(tasks.id, id)).run();
     return this.findById(id);
   }
 
-  delete(id: string): boolean {
-    const existing = this.findById(id);
-    if (!existing) return false;
+  delete(id: string): void {
     this.db.delete(tasks).where(eq(tasks.id, id)).run();
-    return true;
   }
-}
 
-function toTask(row: typeof tasks.$inferSelect): Task {
-  return {
-    ...row,
-    skills: JSON.parse(row.skills),
-    status: row.status as Task['status'],
-    priority: row.priority as Task['priority'],
-  };
+  findByStatus(status: string): TaskRow[] {
+    return this.db.select().from(tasks).where(eq(tasks.status, status)).all();
+  }
+
+  findByAssignee(entityId: string): TaskRow[] {
+    return this.db.select().from(tasks).where(eq(tasks.assignedEntityId, entityId)).all();
+  }
+
+  findSubTasks(parentTaskId: string): TaskRow[] {
+    return this.db.select().from(tasks).where(eq(tasks.parentTaskId, parentTaskId)).all();
+  }
+
+  assign(taskId: string, entityId: string): void {
+    this.db.update(tasks).set({ assignedEntityId: entityId, status: 'todo', updatedAt: new Date().toISOString() }).where(eq(tasks.id, taskId)).run();
+  }
+
+  complete(taskId: string): void {
+    const now = new Date().toISOString();
+    this.db.update(tasks).set({ status: 'done', completedAt: now, updatedAt: now }).where(eq(tasks.id, taskId)).run();
+  }
+
+  fail(taskId: string): void {
+    const now = new Date().toISOString();
+    this.db.update(tasks).set({ status: 'failed', completedAt: now, updatedAt: now }).where(eq(tasks.id, taskId)).run();
+  }
 }

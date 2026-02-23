@@ -3,51 +3,37 @@ import { ulid } from 'ulid';
 import type { DexterDb } from '../connection.js';
 import { activityLog } from '../schema.js';
 
-export interface ActivityEntry {
-  id: string;
-  entityId: string | null;
-  type: string;
-  message: string;
-  metadata: Record<string, unknown> | null;
-  createdAt: string;
-}
+type ActivityRow = typeof activityLog.$inferSelect;
+type ActivityInsert = typeof activityLog.$inferInsert;
 
 export class ActivityRepository {
   constructor(private db: DexterDb) {}
 
-  findRecent(limit = 50): ActivityEntry[] {
-    const rows = this.db.select().from(activityLog).orderBy(desc(activityLog.createdAt)).limit(limit).all();
-    return rows.map(toActivity);
+  findRecent(limit = 50): ActivityRow[] {
+    return this.db.select().from(activityLog).orderBy(desc(activityLog.createdAt)).limit(limit).all();
   }
 
-  findByEntity(entityId: string, limit = 50): ActivityEntry[] {
-    const rows = this.db
+  findByEntity(entityId: string, limit = 50): ActivityRow[] {
+    return this.db
       .select()
       .from(activityLog)
       .where(eq(activityLog.entityId, entityId))
       .orderBy(desc(activityLog.createdAt))
       .limit(limit)
       .all();
-    return rows.map(toActivity);
   }
 
-  create(entry: { entityId?: string; type: string; message: string; metadata?: Record<string, unknown> }): ActivityEntry {
-    const row = {
+  create(entry: Omit<ActivityInsert, 'id' | 'createdAt'>): ActivityRow {
+    const row: ActivityInsert = {
       id: ulid(),
-      entityId: entry.entityId ?? null,
-      type: entry.type,
-      message: entry.message,
-      metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
+      ...entry,
       createdAt: new Date().toISOString(),
     };
     this.db.insert(activityLog).values(row).run();
-    return toActivity(row);
+    return this.findById(row.id!)!;
   }
-}
 
-function toActivity(row: typeof activityLog.$inferSelect): ActivityEntry {
-  return {
-    ...row,
-    metadata: row.metadata ? JSON.parse(row.metadata) : null,
-  };
+  private findById(id: string): ActivityRow | undefined {
+    return this.db.select().from(activityLog).where(eq(activityLog.id, id)).get();
+  }
 }

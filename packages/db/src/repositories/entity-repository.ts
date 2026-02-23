@@ -1,91 +1,67 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { ulid } from 'ulid';
-import type { CreateEntityInput, Entity, UpdateEntityInput } from '@dexter/core';
 import type { DexterDb } from '../connection.js';
 import { entities } from '../schema.js';
+
+type EntityRow = typeof entities.$inferSelect;
+type EntityInsert = typeof entities.$inferInsert;
 
 export class EntityRepository {
   constructor(private db: DexterDb) {}
 
-  findAll(): Entity[] {
-    const rows = this.db.select().from(entities).all();
-    return rows.map(toEntity);
+  findAll(filters?: { departmentId?: string; state?: string; hierarchyRole?: string }): EntityRow[] {
+    if (!filters) {
+      return this.db.select().from(entities).all();
+    }
+    const conditions = [];
+    if (filters.departmentId) conditions.push(eq(entities.departmentId, filters.departmentId));
+    if (filters.state) conditions.push(eq(entities.state, filters.state));
+    if (filters.hierarchyRole) conditions.push(eq(entities.hierarchyRole, filters.hierarchyRole));
+
+    if (conditions.length === 0) return this.db.select().from(entities).all();
+    return this.db.select().from(entities).where(and(...conditions)).all();
   }
 
-  findById(id: string): Entity | undefined {
-    const row = this.db.select().from(entities).where(eq(entities.id, id)).get();
-    return row ? toEntity(row) : undefined;
+  findById(id: string): EntityRow | undefined {
+    return this.db.select().from(entities).where(eq(entities.id, id)).get();
   }
 
-  findByDepartment(departmentId: string): Entity[] {
-    const rows = this.db.select().from(entities).where(eq(entities.departmentId, departmentId)).all();
-    return rows.map(toEntity);
-  }
-
-  create(input: CreateEntityInput): Entity {
+  create(input: Omit<EntityInsert, 'id' | 'createdAt' | 'updatedAt'>): EntityRow {
     const now = new Date().toISOString();
-    const id = ulid();
-    const row = {
-      id,
-      name: input.name,
-      role: input.role,
-      departmentId: input.departmentId ?? null,
-      skills: JSON.stringify(input.skills),
-      personality: JSON.stringify(input.personality),
-      communication: input.communication,
-      rules: JSON.stringify(input.rules),
-      backstory: input.backstory,
-      state: 'idle' as const,
-      mood: 'neutral' as const,
-      energy: 100,
-      avatarUrl: input.avatarUrl ?? null,
-      llmConfigId: input.llmConfigId ?? null,
-      soulPath: input.soulPath,
+    const row: EntityInsert = {
+      id: ulid(),
+      ...input,
       createdAt: now,
       updatedAt: now,
     };
     this.db.insert(entities).values(row).run();
-    return toEntity(row);
+    return this.findById(row.id!)!;
   }
 
-  update(id: string, input: UpdateEntityInput): Entity | undefined {
+  update(id: string, updates: Partial<Omit<EntityInsert, 'id' | 'createdAt'>>): EntityRow | undefined {
     const existing = this.findById(id);
     if (!existing) return undefined;
-
-    const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
-    if (input.name !== undefined) updates.name = input.name;
-    if (input.role !== undefined) updates.role = input.role;
-    if (input.departmentId !== undefined) updates.departmentId = input.departmentId;
-    if (input.skills !== undefined) updates.skills = JSON.stringify(input.skills);
-    if (input.personality !== undefined) updates.personality = JSON.stringify(input.personality);
-    if (input.communication !== undefined) updates.communication = input.communication;
-    if (input.rules !== undefined) updates.rules = JSON.stringify(input.rules);
-    if (input.backstory !== undefined) updates.backstory = input.backstory;
-    if (input.state !== undefined) updates.state = input.state;
-    if (input.mood !== undefined) updates.mood = input.mood;
-    if (input.energy !== undefined) updates.energy = input.energy;
-    if (input.avatarUrl !== undefined) updates.avatarUrl = input.avatarUrl;
-    if (input.llmConfigId !== undefined) updates.llmConfigId = input.llmConfigId;
-
-    this.db.update(entities).set(updates).where(eq(entities.id, id)).run();
+    this.db.update(entities).set({ ...updates, updatedAt: new Date().toISOString() }).where(eq(entities.id, id)).run();
     return this.findById(id);
   }
 
-  delete(id: string): boolean {
-    const existing = this.findById(id);
-    if (!existing) return false;
+  delete(id: string): void {
     this.db.delete(entities).where(eq(entities.id, id)).run();
-    return true;
   }
-}
 
-function toEntity(row: typeof entities.$inferSelect): Entity {
-  return {
-    ...row,
-    skills: JSON.parse(row.skills),
-    personality: JSON.parse(row.personality),
-    rules: JSON.parse(row.rules),
-    state: row.state as Entity['state'],
-    mood: row.mood as Entity['mood'],
-  };
+  findByDepartment(departmentId: string): EntityRow[] {
+    return this.db.select().from(entities).where(eq(entities.departmentId, departmentId)).all();
+  }
+
+  updateState(id: string, state: string): void {
+    this.db.update(entities).set({ state, updatedAt: new Date().toISOString() }).where(eq(entities.id, id)).run();
+  }
+
+  updateEnergy(id: string, energy: number, mood: string): void {
+    this.db.update(entities).set({ energy, mood, updatedAt: new Date().toISOString() }).where(eq(entities.id, id)).run();
+  }
+
+  updateXP(id: string, xp: number, level: number): void {
+    this.db.update(entities).set({ xp, level, updatedAt: new Date().toISOString() }).where(eq(entities.id, id)).run();
+  }
 }

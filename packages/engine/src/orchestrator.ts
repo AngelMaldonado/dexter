@@ -1,158 +1,134 @@
-import type { Entity, Task, LLMProvider, DexterEvent } from '@dexter/core';
-import type { DexterDb } from '@dexter/db';
-import { TaskRepository } from '@dexter/db';
-import { ActivityRepository } from '@dexter/db';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { Task, Entity, MCPServerConfig, DexterEvent } from '@dexter/core';
 import { EventBus } from './event-bus.js';
 import { EntityManager } from './entity-manager.js';
 import { EntityRuntime } from './entity-runtime.js';
 import { Scheduler } from './scheduler.js';
+import { MCPManager } from './mcp-manager.js';
+import { MemoryManager } from './memory-manager.js';
+import { EnergySystem } from './energy-system.js';
+import { GamificationEngine } from './gamification-engine.js';
+
+export interface OrchestratorConfig {
+  mcpServers?: MCPServerConfig[];
+}
 
 export class Orchestrator {
   readonly eventBus: EventBus;
   readonly entityManager: EntityManager;
   readonly scheduler: Scheduler;
+  readonly mcpManager: MCPManager;
+  readonly memoryManager: MemoryManager;
+  readonly energySystem: EnergySystem;
+  readonly gamificationEngine: GamificationEngine;
   private runtime: EntityRuntime;
-  private taskRepo: TaskRepository;
-  private activityRepo: ActivityRepository;
-  private llmProviders = new Map<string, LLMProvider>();
-  private defaultLLMProvider: LLMProvider | null = null;
+  private llmProviders = new Map<string, BaseChatModel>();
+  private defaultLLMProvider: BaseChatModel | null = null;
 
-  constructor(private db: DexterDb) {
+  constructor(config?: OrchestratorConfig) {
     this.eventBus = new EventBus();
-    this.entityManager = new EntityManager(db, this.eventBus);
+    this.entityManager = new EntityManager(this.eventBus);
     this.scheduler = new Scheduler();
-    this.runtime = new EntityRuntime(db, this.eventBus);
-    this.taskRepo = new TaskRepository(db);
-    this.activityRepo = new ActivityRepository(db);
+    this.mcpManager = new MCPManager();
+    this.memoryManager = new MemoryManager(this.eventBus);
+    this.energySystem = new EnergySystem(this.eventBus, this.entityManager);
+    this.gamificationEngine = new GamificationEngine(this.eventBus, this.entityManager);
+    this.runtime = new EntityRuntime(this.eventBus, this.energySystem);
 
-    this.setupEventLogging();
+    if (config?.mcpServers) {
+      for (const server of config.mcpServers) {
+        this.mcpManager.connectServer(server).catch(err => {
+          console.error(`Failed to connect MCP server ${server.name}:`, err);
+        });
+      }
+    }
   }
 
-  registerLLMProvider(name: string, provider: LLMProvider, isDefault = false): void {
+  registerLLMProvider(name: string, provider: BaseChatModel, isDefault = false): void {
     this.llmProviders.set(name, provider);
     if (isDefault || !this.defaultLLMProvider) {
       this.defaultLLMProvider = provider;
     }
   }
 
-  getTaskRepo(): TaskRepository {
-    return this.taskRepo;
-  }
-
-  getActivityRepo(): ActivityRepository {
-    return this.activityRepo;
-  }
-
-  async assignAndExecute(taskId: string, entityId?: string): Promise<string> {
-    const task = this.taskRepo.findById(taskId);
-    if (!task) throw new Error(`Task ${taskId} not found`);
-
+  async assignAndExecute(task: Task, entityId?: string): Promise<string> {
     let entity: Entity | undefined;
+
     if (entityId) {
-      entity = this.entityManager.getById(entityId);
+      entity = this.entityManager.getEntity(entityId);
       if (!entity) throw new Error(`Entity ${entityId} not found`);
     } else {
-      const all = this.entityManager.getAll();
+      const all = this.entityManager.getAllEntities();
       const best = this.scheduler.findBestEntity(task, all);
       if (!best) throw new Error('No available entity for this task');
       entity = best;
     }
 
+    // Check if entity should take a break
+    if (this.energySystem.shouldTakeBreak(entity.id)) {
+      this.entityManager.transitionState(entity.id, 'on_break');
+      throw new Error(`Entity ${entity.name} needs a break (low energy)`);
+    }
+
     // Assign task
-    this.taskRepo.update(task.id, { assigneeId: entity.id, status: 'in_progress' });
     this.eventBus.emit({
       type: 'task:assigned',
-      taskId: task.id,
-      entityId: entity.id,
       timestamp: new Date().toISOString(),
-    });
-    this.eventBus.emit({
-      type: 'task:status-changed',
-      taskId: task.id,
-      previousStatus: task.status,
-      newStatus: 'in_progress',
-      timestamp: new Date().toISOString(),
+      payload: { taskId: task.id, entityId: entity.id },
     });
 
-    // Update entity state
-    this.entityManager.update(entity.id, { state: 'working' });
+    // Transition to working
+    this.entityManager.transitionState(entity.id, 'working');
 
     // Get LLM provider
-    const provider = this.defaultLLMProvider;
-    if (!provider) throw new Error('No LLM provider registered');
+    const llm = this.defaultLLMProvider;
+    if (!llm) throw new Error('No LLM provider registered');
+
+    // Get MCP tools for entity
+    const mcpTools = this.mcpManager.getToolsForEntity(entity);
+
+    // Get relevant memories (used for context enrichment in the future)
+    const _memories = this.memoryManager.getRelevantMemories(entity.id, task.description);
 
     try {
-      const startTime = Date.now();
-      const result = await this.runtime.executeTask(entity, task, provider);
-      const durationMinutes = Math.round((Date.now() - startTime) / 60000);
-
-      // Update task as done
-      this.taskRepo.update(task.id, {
-        status: 'done',
-        actualMinutes: durationMinutes,
-        completedAt: new Date().toISOString(),
+      const result = await this.runtime.executeTask({
+        entity,
+        task,
+        llm,
+        tools: mcpTools,
       });
 
-      // Update entity state and energy
-      const energyCost = Math.min(20, Math.max(5, durationMinutes * 2));
-      this.entityManager.update(entity.id, {
-        state: 'idle',
-        energy: Math.max(0, entity.energy - energyCost),
-      });
+      // Store memory of completed task
+      this.memoryManager.storeMemory(
+        entity.id,
+        'episodic',
+        `Completed task: ${task.title} - ${result.slice(0, 200)}`,
+        task.id,
+      );
 
-      this.eventBus.emit({
-        type: 'task:completed',
-        taskId: task.id,
-        entityId: entity.id,
-        durationMinutes,
-        timestamp: new Date().toISOString(),
-      });
+      // Update mood based on success
+      this.energySystem.updateMood(entity.id, 'success');
+
+      // Transition back to idle
+      this.entityManager.transitionState(entity.id, 'idle');
 
       return result;
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      // Update mood based on failure
+      this.energySystem.updateMood(entity.id, 'failure');
 
-      this.taskRepo.update(task.id, { status: 'failed' });
-      this.entityManager.update(entity.id, { state: 'idle', mood: 'frustrated' });
-
-      this.eventBus.emit({
-        type: 'task:failed',
-        taskId: task.id,
-        entityId: entity.id,
-        error: errMsg,
-        timestamp: new Date().toISOString(),
-      });
+      // Transition back to idle
+      try {
+        this.entityManager.transitionState(entity.id, 'idle');
+      } catch {
+        // Entity might already be in a valid state
+      }
 
       throw error;
     }
   }
 
-  private setupEventLogging(): void {
-    this.eventBus.onAny((event) => {
-      const entityId = 'entityId' in event ? (event.entityId as string) : undefined;
-      this.activityRepo.create({
-        entityId,
-        type: event.type,
-        message: formatEventMessage(event),
-        metadata: JSON.parse(JSON.stringify(event)),
-      });
-    });
-  }
-}
-
-function formatEventMessage(event: DexterEvent): string {
-  switch (event.type) {
-    case 'entity:created':
-      return `Entity created: ${event.entity.name}`;
-    case 'entity:state-changed':
-      return `Entity state: ${event.previousState} → ${event.newState}`;
-    case 'task:assigned':
-      return `Task ${event.taskId} assigned to entity ${event.entityId}`;
-    case 'task:completed':
-      return `Task ${event.taskId} completed in ${event.durationMinutes}min`;
-    case 'task:failed':
-      return `Task ${event.taskId} failed: ${event.error}`;
-    default:
-      return `Event: ${event.type}`;
+  async shutdown(): Promise<void> {
+    await this.mcpManager.disconnectAll();
   }
 }

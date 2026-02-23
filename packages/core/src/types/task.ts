@@ -8,13 +8,15 @@ export interface Task {
   description: string;
   status: TaskStatus;
   priority: TaskPriority;
-  skills: string[];
-  assigneeId: string | null;
+  requiredSkills: string[];
+  assignedEntityId: string | null;
+  parentTaskId: string | null;
   departmentId: string | null;
   boardCardId: string | null;
-  boardConfigId: string | null;
-  estimatedMinutes: number | null;
-  actualMinutes: number | null;
+  boardProviderId: string | null;
+  estimatedEffort: number;
+  actualTokensUsed: number;
+  actualCost: number;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -24,12 +26,13 @@ export interface CreateTaskInput {
   title: string;
   description: string;
   priority?: TaskPriority;
-  skills?: string[];
-  assigneeId?: string;
+  requiredSkills?: string[];
+  assignedEntityId?: string;
+  parentTaskId?: string;
   departmentId?: string;
   boardCardId?: string;
-  boardConfigId?: string;
-  estimatedMinutes?: number;
+  boardProviderId?: string;
+  estimatedEffort?: number;
 }
 
 export interface UpdateTaskInput {
@@ -37,15 +40,28 @@ export interface UpdateTaskInput {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
-  skills?: string[];
-  assigneeId?: string | null;
+  requiredSkills?: string[];
+  assignedEntityId?: string | null;
+  parentTaskId?: string | null;
   departmentId?: string | null;
-  estimatedMinutes?: number | null;
-  actualMinutes?: number | null;
+  boardCardId?: string | null;
+  boardProviderId?: string | null;
+  estimatedEffort?: number;
+  actualTokensUsed?: number;
+  actualCost?: number;
   completedAt?: string | null;
 }
 
 export interface TaskDependency {
   taskId: string;
   dependsOnTaskId: string;
+}
+
+export interface SubTask {
+  id: string;
+  parentTaskId: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  assignedEntityId: string | null;
 }

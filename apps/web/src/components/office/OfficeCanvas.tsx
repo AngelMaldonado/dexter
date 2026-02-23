@@ -129,6 +129,8 @@ export function OfficeCanvas() {
         height={dimensions.height}
         background={0x0f0f1a}
         antialias
+        resolution={window.devicePixelRatio || 1}
+        autoDensity
       >
         <pixiContainer x={viewport.x} y={viewport.y} scale={viewport.scale}>
           <FloorLayer layout={layout} departments={departments} />

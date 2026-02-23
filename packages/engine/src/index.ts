@@ -1,5 +1,13 @@
 export { EventBus } from './event-bus.js';
 export { EntityManager } from './entity-manager.js';
 export { EntityRuntime } from './entity-runtime.js';
+export type { EntityRuntimeConfig, EntityRuntimeStateType } from './entity-runtime.js';
 export { Scheduler } from './scheduler.js';
 export { Orchestrator } from './orchestrator.js';
+export type { OrchestratorConfig } from './orchestrator.js';
+export { MCPManager } from './mcp-manager.js';
+export type { MCPTool } from './mcp-manager.js';
+export { MemoryManager } from './memory-manager.js';
+export type { Memory, MemoryType } from './memory-manager.js';
+export { EnergySystem } from './energy-system.js';
+export { GamificationEngine } from './gamification-engine.js';
