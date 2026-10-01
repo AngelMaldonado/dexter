@@ -8,3 +8,20 @@ dist/
 *.db-shm
 *.db-wal
 HOME/
+
+# Local configuration, generated state, and tooling
+.DS_Store
+.env.*
+!.env.example
+!.env.*.example
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+*.log
+*.tsbuildinfo
+coverage/
+.cache/
+.codegraph/
